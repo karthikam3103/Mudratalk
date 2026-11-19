@@ -1,0 +1,14 @@
+.git
+.venv-cnn
+frontend/node_modules
+frontend/dist
+dataset/raw
+dataset/train
+dataset/validation
+dataset/test
+dataset/pdf_source
+dataset/pdf_crops_highres
+**/__pycache__
+**/*.pyc
+**/*.before-*
+**/*.backup

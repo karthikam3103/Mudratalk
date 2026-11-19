@@ -1,4 +1,8 @@
-# Live mudra recognition
+# MUDRATALK
+
+**MUDRATALK: An AI-Based Mudra Recognition System for Indian Traditional Dance Styles Using CNN.**
+
+## Live mudra recognition
 
 The camera classifier learns from labeled camera frames stored under
 `dataset/train/<Mudra name>/`. Start with at least two mudras and collect at

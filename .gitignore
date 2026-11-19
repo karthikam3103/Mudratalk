@@ -1,4 +1,5 @@
 .venv/
+.venv-cnn/
 venv/
 __pycache__/
 *.py[cod]
@@ -10,6 +11,16 @@ __pycache__/
 dataset/train/
 dataset/validation/
 dataset/test/
+dataset/raw/
+dataset/pdf_crops_highres/
 dataset/pdf_source/pages/
 dataset/pdf_source/crops/
 dataset/pdf_source/contact_sheet.jpg
+
+backend/mudra_model.pkl
+backend/*.before-*
+backend/*.backup
+frontend/public/mudras_lowres_backup/
+frontend/src/*.before-*
+frontend/src/*.backup
+frontend/src_backup_before_routing/

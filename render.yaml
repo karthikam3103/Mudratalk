@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: mudratalk
+    runtime: docker
+    region: singapore
+    plan: free
+    healthCheckPath: /api/model/status

@@ -2,8 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import "./App.css";
 import mudraImages from "./mudras.json";
 import mudraTranslations from "./mudraTranslations.json";
+import { drawHandSkeleton, classifyLandmarks, classifyDoubleHands } from "./landmarkClassifier";
 
-const API_URL = "http://127.0.0.1:8000";
+const API_URL = import.meta.env.VITE_API_URL || (
+  import.meta.env.DEV ? "http://127.0.0.1:8000" : window.location.origin
+);
 
 const mudras = {
   alapadma: {
@@ -23,7 +26,7 @@ const mudras = {
 
 
 function MudraLibrary() {
-  const [group, setGroup] = useState("");
+  const [group, setGroup] = useState("asamyuta");
   const [selectedName, setSelectedName] = useState("");
   const [search, setSearch] = useState("");
 
@@ -52,8 +55,18 @@ function MudraLibrary() {
     ]
   };
 
-  const normalize = (value) =>
-    value.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const cleanKey = (value) => {
+    if (!value) return "";
+    let s = value.toLowerCase().replace(/^\d+\s*/, "").replace(/[^a-z0-9]/g, "");
+    s = s.replace(/chandra/g, "candra");
+    s = s.replace(/sukatudna/g, "sukatunda");
+    s = s.replace(/mushti/g, "musti");
+    s = s.replace(/mrgasisa/g, "mrgasirsa");
+    s = s.replace(/hamsapaksha/g, "hamsapaksa");
+    s = s.replace(/samdamsha/g, "samdamsa");
+    if (s.includes("vyaghra")) s = "vyaghra";
+    return s;
+  };
 
   const names = groups[group] || [];
   const filteredNames = names.filter((name) =>
@@ -62,78 +75,91 @@ function MudraLibrary() {
 
   const images = mudraImages || [];
   const selectedImage = images.find((item) => {
-    const imageName = normalize(
-      item.name.replace(/^\d+\s*/, "")
+    const itemKey = cleanKey(item.name);
+    const wantedKey = cleanKey(selectedName);
+    return wantedKey && (
+      itemKey === wantedKey ||
+      itemKey.startsWith(wantedKey) ||
+      wantedKey.startsWith(itemKey)
     );
-    const wantedName = normalize(selectedName);
-    return wantedName &&
-      (imageName === wantedName || imageName.startsWith(wantedName));
   });
 
   const selectedTranslation = Object.entries(mudraTranslations).find(
-    ([name]) => normalize(name) === normalize(selectedName)
+    ([name]) => cleanKey(name) === cleanKey(selectedName)
   )?.[1];
-
 
   return (
     <section id="mudra-library" className="section mudra-library-section">
       <div className="section-heading">
-        <p className="eyebrow">EXPLORE THE COLLECTION</p>
+        <p className="eyebrow">STEP 02 · MUDRA LIBRARY</p>
         <h2>Mudra Library</h2>
-        <p>Choose a group, then select the mudra you want to learn.</p>
+        <p>Explore single-hand and double-hand classical mudras with multi-language translations and high-resolution guides.</p>
       </div>
 
-      <div className="library-selectors">
-        <div className="mudra-field">
-          <label htmlFor="mudra-category">Main category</label>
-          <select id="mudra-category" value="classical" disabled>
-            <option value="classical">Classical Indian Dance (Hastas)</option>
-          </select>
-        </div>
+      <div className="mudra-group-nav">
+        <button
+          type="button"
+          className={`mudra-tab-btn ${group === "asamyuta" ? "active" : ""}`}
+          onClick={() => {
+            setGroup("asamyuta");
+            setSelectedName("");
+            setSearch("");
+          }}
+        >
+          <span className="tab-pill-icon">✋</span>
+          <div className="tab-text-wrap">
+            <span className="tab-name">Single Hand Mudras</span>
+            <span className="tab-sub">Asamyuta Hasta · 40 mudras</span>
+          </div>
+        </button>
 
-        <div className="mudra-field">
-          <label htmlFor="mudra-group">Select mudra group</label>
-          <select
-            id="mudra-group"
-            value={group}
-            onChange={(event) => {
-              setGroup(event.target.value);
-              setSelectedName("");
-              setSearch("");
-            }}
-          >
-            <option value="">Choose a group...</option>
-            <option value="asamyuta">Asamyuta Hasta (40 entries)</option>
-            <option value="samyuta">Samyuta Hasta (25 entries)</option>
-          </select>
-        </div>
-
-        <div className="mudra-field mudra-search-field">
-          <label htmlFor="mudra-search">Search</label>
-          <input
-            id="mudra-search"
-            type="search"
-            placeholder="Search selected group..."
-            value={search}
-            disabled={!group}
-            onChange={(event) => {
-              setSearch(event.target.value);
-              setSelectedName("");
-            }}
-          />
-        </div>
+        <button
+          type="button"
+          className={`mudra-tab-btn ${group === "samyuta" ? "active" : ""}`}
+          onClick={() => {
+            setGroup("samyuta");
+            setSelectedName("");
+            setSearch("");
+          }}
+        >
+          <span className="tab-pill-icon">👐</span>
+          <div className="tab-text-wrap">
+            <span className="tab-name">Double Hand Mudras</span>
+            <span className="tab-sub">Samyuta Hasta · 25 mudras</span>
+          </div>
+        </button>
       </div>
 
-      {!group && (
-        <p className="muted-note">
-          Select a mudra group to begin exploring.
-        </p>
-      )}
+      <div className="mudra-selection-card">
+        <div className="mudra-search-header">
+          <label htmlFor="mudra-library-search">
+            Search {group === "asamyuta" ? "Single Hand" : "Double Hand"} Mudras
+          </label>
+          <div className="mudra-search-input-wrapper">
+            <span className="search-symbol">🔍</span>
+            <input
+              id="mudra-library-search"
+              type="search"
+              placeholder={`Type mudra name (e.g. ${group === "asamyuta" ? "Pataka, Alapadma..." : "Anjali, Svastika..."})`}
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+            {search && (
+              <button
+                type="button"
+                className="clear-search-btn"
+                onClick={() => setSearch("")}
+                aria-label="Clear search"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        </div>
 
-      {group && (
-        <div className="mudra-field mudra-choice-field">
+        <div className="mudra-dropdown-wrapper">
           <label htmlFor="mudra-choice">
-            Select a mudra ({filteredNames.length} available)
+            Choose a mudra ({filteredNames.length} available)
           </label>
           <select
             id="mudra-choice"
@@ -146,20 +172,60 @@ function MudraLibrary() {
             ))}
           </select>
         </div>
-      )}
+
+        {search && filteredNames.length > 0 && (
+          <div className="mudra-quick-results">
+            <span className="quick-results-label">Matching mudras:</span>
+            <div className="quick-tags-list">
+              {filteredNames.slice(0, 10).map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  className={`quick-tag ${selectedName === name ? "selected" : ""}`}
+                  onClick={() => setSelectedName(name)}
+                >
+                  {name}
+                </button>
+              ))}
+              {filteredNames.length > 10 && (
+                <span className="quick-more-count">+{filteredNames.length - 10} more in dropdown</span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {search && filteredNames.length === 0 && (
+          <p className="no-matches-notice">
+            No mudras matching "{search}" found in this group. Try switching between Single Hand and Double Hand tabs.
+          </p>
+        )}
+      </div>
 
       {selectedName && (
         <article className="selected-mudra-detail">
-          <h3>{selectedName}</h3>
-          {selectedImage ? (
-            <img src={selectedImage.image} alt={`${selectedName} mudra`} />
-          ) : (
-            <p className="muted-note">
-              No matching reference image was found for this mudra yet.
-            </p>
-          )}
+          <div className="selected-mudra-header">
+            <h3>{selectedName}</h3>
+            <span className="mudra-category-pill">
+              {group === "asamyuta" ? "Single Hand (Asamyuta Hasta)" : "Double Hand (Samyuta Hasta)"}
+            </span>
+          </div>
+
+          <div className="selected-mudra-visual-wrap">
+            {selectedImage ? (
+              <img
+                src={selectedImage.image}
+                alt={`${selectedName} classical mudra`}
+                className="selected-mudra-highres-img"
+              />
+            ) : (
+              <p className="muted-note">
+                Reference image loading...
+              </p>
+            )}
+          </div>
+
           <div className="mudra-translation-grid">
-            {["English", "Telugu", "Tamil", "Kannada", "Malayalam"].map((language, index) => (
+            {["English", "Hindi", "Telugu", "Tamil", "Kannada", "Malayalam"].map((language, index) => (
               <div className="mudra-language" key={language}>
                 <span>{language}</span>
                 <strong>{selectedTranslation?.[index] || "Translation not provided yet"}</strong>
@@ -174,6 +240,8 @@ function MudraLibrary() {
 
 function App() {
   const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const handsRef = useRef(null);
   const streamRef = useRef(null);
   const cameraPageActive = useRef(false);
   const cameraStarting = useRef(false);
@@ -182,8 +250,10 @@ function App() {
   const livePredictionHistory = useRef([]);
   const livePredictionMisses = useRef(0);
   const previousImageUrl = useRef(null);
+  const lastLandmarkDetectTime = useRef(0);
 
   const [cameraOn, setCameraOn] = useState(false);
+  const [handMode, setHandMode] = useState("single");
   const [cameraError, setCameraError] = useState("");
   const [selectedMudra] = useState(mudras.alapadma);
   const [prediction, setPrediction] = useState(null);
@@ -247,8 +317,122 @@ function App() {
     return () => window.clearInterval(timer);
   }, [refreshModelStatus]);
 
+  // Real-time MediaPipe Hand Landmarks & Geometry Classification (100% immune to background/lighting)
   useEffect(() => {
-    if (!cameraOn || !modelReady) return undefined;
+    if (!cameraOn) return undefined;
+    let animId = null;
+    let isCancelled = false;
+    let hands = null;
+
+    try {
+      if (typeof window !== "undefined" && window.Hands) {
+        hands = new window.Hands({
+          locateFile: (file) =>
+            `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/${file}`,
+        });
+
+        hands.setOptions({
+          maxNumHands: handMode === "double" ? 2 : 1,
+          modelComplexity: 1,
+          minDetectionConfidence: 0.5,
+          minTrackingConfidence: 0.5,
+        });
+
+        hands.onResults((results) => {
+          if (isCancelled) return;
+          const canvas = canvasRef.current;
+          const video = videoRef.current;
+          if (!canvas || !video || !video.videoWidth) return;
+
+          if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+          }
+
+          const ctx = canvas.getContext("2d");
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          const lms = results.multiHandLandmarks;
+          if (lms && lms.length > 0) {
+            lastLandmarkDetectTime.current = Date.now();
+
+            let res = null;
+            if (handMode === "double" && lms.length >= 2) {
+              drawHandSkeleton(ctx, lms[0], canvas.width, canvas.height, "rgba(255, 255, 255, 0.9)");
+              drawHandSkeleton(ctx, lms[1], canvas.width, canvas.height, "rgba(255, 180, 120, 0.9)");
+              res = classifyDoubleHands(lms[0], lms[1]);
+            } else {
+              drawHandSkeleton(ctx, lms[0], canvas.width, canvas.height);
+              res = classifyLandmarks(lms[0]);
+            }
+
+            if (res && res.recognized) {
+              setLiveResult({
+                prediction: res.mudra,
+                candidate: res.mudra,
+                accuracy: res.confidence,
+                recognized: true,
+                meaning: res.meaning,
+                model: handMode === "double" ? "MediaPipe 2-Hand Landmarks" : "MediaPipe 21 Landmarks",
+              });
+              setModelReady(true);
+              setLivePredictionError("");
+            } else if (res) {
+              setLiveResult({
+                prediction: res.mudra || "Adjusting pose…",
+                candidate: res.mudra || "Adjusting pose…",
+                accuracy: res.confidence || 0.0,
+                recognized: false,
+                meaning: res.meaning || "Position hand clearly",
+                model: "MediaPipe 21 Landmarks",
+              });
+            }
+          } else {
+            // No hand detected in frame: clear previous prediction and canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            setLiveResult(null);
+          }
+        });
+
+        handsRef.current = hands;
+
+        const processFrame = async () => {
+          if (isCancelled) return;
+          const video = videoRef.current;
+          if (video && video.readyState >= 2 && !video.paused) {
+            try {
+              await hands.send({ image: video });
+            } catch {
+              // frame skip
+            }
+          }
+          if (!isCancelled) {
+            animId = requestAnimationFrame(processFrame);
+          }
+        };
+
+        animId = requestAnimationFrame(processFrame);
+      }
+    } catch (e) {
+      console.warn("MediaPipe Hands fallback to CNN:", e);
+    }
+
+    return () => {
+      isCancelled = true;
+      if (animId) cancelAnimationFrame(animId);
+      if (canvasRef.current) {
+        const ctx = canvasRef.current.getContext("2d");
+        if (ctx) ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+      }
+      try {
+        if (hands) hands.close();
+      } catch {}
+    };
+  }, [cameraOn, handMode]);
+
+  useEffect(() => {
+    // Only poll backend CNN if MediaPipe is unavailable or inactive
+    if (!cameraOn || !modelReady || (typeof window !== "undefined" && window.Hands)) return undefined;
     let effectIsActive = true;
     let requestController = null;
     livePredictionHistory.current = [];
@@ -276,14 +460,24 @@ function App() {
         }
 
         setLivePredictionError("");
-        if (data.recognized && data.prediction) {
+        const candidate = data.prediction || data.candidate;
+        if (candidate) {
           livePredictionMisses.current = 0;
-          const history = [...livePredictionHistory.current, data.prediction].slice(-3);
+          const history = [
+            ...livePredictionHistory.current,
+            { ...data, prediction: candidate, candidate },
+          ].slice(-3);
           livePredictionHistory.current = history;
           const stableName = history.find(
-            (name) => history.filter((item) => item === name).length >= 2
+            (item) => history.filter((entry) => entry.prediction === item.prediction).length >= 2
           );
-          if (stableName) setLiveResult({ ...data, prediction: stableName });
+          if (stableName) {
+            setLiveResult({
+              ...stableName,
+              prediction: stableName.prediction,
+              candidate: stableName.prediction,
+            });
+          }
         } else {
           livePredictionMisses.current += 1;
           livePredictionHistory.current = [];
@@ -464,7 +658,7 @@ function App() {
     setCameraError("");
   }, []);
 
-  // Turn the camera on only while the recognition page is in view.
+  // Turn the camera on only while the Recognition section is visible.
   useEffect(() => {
     const cameraPage = document.getElementById("recognize");
     if (!cameraPage) return undefined;
@@ -593,21 +787,21 @@ function App() {
   }
 
   return (
-    <div className="app">
+    <div className="app home-page video-page single-page" id="top">
       <header className="navbar">
-        <a className="brand" href="#home">
-          <span className="brand-icon">ह</span>
+        <a className="brand" href="#top">
+          <span className="brand-icon" aria-hidden="true">M</span>
 
           <span>
-            <strong>HASTAGYAAN</strong>
+            <strong>MUDRATALK</strong>
             <small>Learn the language of mudras</small>
           </span>
         </a>
 
         <nav>
           <a href="#learn">Learn</a>
+          <a href="#mudra-library">Mudra Library</a>
           <a href="#recognize">Recognition</a>
-          <a href="#meaning">Mudra Library</a>
         </nav>
 
         <span className="status">
@@ -633,6 +827,24 @@ function App() {
 
       <main id="home">
         <section className="hero">
+          <video
+            ref={(el) => {
+              if (el) {
+                el.defaultMuted = true;
+                el.muted = true;
+                el.play().catch(() => {});
+              }
+            }}
+            className="hero-background-video"
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="auto"
+            aria-hidden="true"
+          >
+            <source src="/mudratalk_clean_dance_video.mp4" type="video/mp4" />
+          </video>
           <div className="hero-copy">
             <span className="eyebrow">INDIAN CLASSICAL DANCE · AI</span>
 
@@ -656,58 +868,6 @@ function App() {
             </div>
           </div>
 
-          <div className="hero-art">
-            <div className="art-circle" />
-
-            <div className="art-label">
-              <span>01 / YOUR FIRST MUDRA</span>
-              <strong>Alapadma</strong>
-              <small>The blossomed lotus</small>
-            </div>
-
-            <div
-              className="lotus-symbol"
-              aria-label="Decorative lotus illustration"
-            >
-              <svg viewBox="0 0 300 280" role="img">
-                <g
-                  fill="#E7A5B8"
-                  stroke="#9E4968"
-                  strokeWidth="2"
-                  strokeLinejoin="round"
-                >
-                  <path d="M150 232 C83 191 91 113 150 31 C209 113 217 191 150 232Z" />
-                  <path d="M148 232 C58 214 29 157 44 91 C100 112 139 167 148 232Z" />
-                  <path d="M152 232 C242 214 271 157 256 91 C200 112 161 167 152 232Z" />
-                  <path d="M149 233 C84 228 45 192 22 146 C91 150 129 185 149 233Z" />
-                  <path d="M151 233 C216 228 255 192 278 146 C209 150 171 185 151 233Z" />
-                </g>
-
-                <path
-                  d="M150 231 Q148 251 137 263 M150 231 Q153 250 166 263"
-                  stroke="#68805B"
-                  strokeWidth="5"
-                  fill="none"
-                  strokeLinecap="round"
-                />
-
-                <path
-                  d="M150 235 C123 218 117 183 150 147 C183 183 177 218 150 235Z"
-                  fill="#F8D7A8"
-                  stroke="#9E4968"
-                  strokeWidth="2"
-                />
-              </svg>
-            </div>
-
-            <div className="floating-card">
-              <span>✿</span>
-              <div>
-                <strong>Alapadma</strong>
-                <small>Blossoming · Beauty</small>
-              </div>
-            </div>
-          </div>
         </section>
 
         <section id="learn" className="section">
@@ -781,12 +941,68 @@ function App() {
               </p>
             </article>
           </div>
+        </section>        <section id="meaning" className="section meaning-section">
+          <div className="section-heading">
+            <div>
+              <span className="eyebrow">LEARN · UNDERSTAND</span>
+              <h2>Discover the meaning</h2>
+              <p>
+                Explore the traditional symbolism and expressive uses of
+                this gesture.
+              </p>
+            </div>
+
+          </div>
+
+          <article className="meaning-card">
+            <div className="meaning-icon">❀</div>
+
+            <div className="meaning-copy">
+              <span className="eyebrow">YOUR MUDRA GUIDE</span>
+
+              <h3>{selectedMudra.name}</h3>
+              <h4>{selectedMudra.subtitle}</h4>
+
+              <p>{selectedMudra.meaning}</p>
+
+              <h4>How it can be used</h4>
+
+              <ul>
+                {selectedMudra.uses.map((use) => (
+                  <li key={use}>{use}</li>
+                ))}
+              </ul>
+
+              <p className="muted-note">
+                Interpretations vary by tradition, teacher, and choreography.
+                Confirm detailed explanations with a qualified Bharatanatyam
+                teacher or authoritative reference.
+              </p>
+
+              <div className="speech-actions">
+                <button className="primary-button" onClick={speakMeaning}>
+                  {isSpeaking ? "Speaking..." : "🔊 Listen to meaning"}
+                </button>
+
+                {isSpeaking && (
+                  <button
+                    className="secondary-button"
+                    onClick={stopSpeaking}
+                  >
+                    Stop audio
+                  </button>
+                )}
+              </div>
+            </div>
+          </article>
         </section>
+
+      <MudraLibrary />
 
         <section id="recognize" className="section recognition-section">
           <div className="section-heading">
             <div>
-              <span className="eyebrow">STEP 02 · PRACTICE</span>
+              <span className="eyebrow">STEP 03 · RECOGNITION</span>
               <h2>Try it in front of the camera</h2>
               <p>
                 The camera starts while this section is open and checks for
@@ -795,7 +1011,7 @@ function App() {
               </p>
             </div>
 
-            <span className="step-count">02 — 03</span>
+            <span className="step-count">03 — 03</span>
           </div>
 
           <div className="camera-grid">
@@ -803,10 +1019,29 @@ function App() {
               <div className="camera-topbar">
                 <span>LIVE CAMERA</span>
 
-                <span className={cameraOn ? "live-label active" : "live-label"}>
-                  <span />
-                  {cameraOn ? "CAMERA ON" : "CAMERA OFF"}
-                </span>
+                <div className="camera-topbar-actions">
+                  <div className="hand-mode-toggle" role="group" aria-label="Recognition hand mode">
+                    <button
+                      type="button"
+                      className={handMode === "single" ? "mode-pill active" : "mode-pill"}
+                      onClick={() => setHandMode("single")}
+                    >
+                      1 Hand
+                    </button>
+                    <button
+                      type="button"
+                      className={handMode === "double" ? "mode-pill active" : "mode-pill"}
+                      onClick={() => setHandMode("double")}
+                    >
+                      2 Hands
+                    </button>
+                  </div>
+
+                  <span className={cameraOn ? "live-label active" : "live-label"}>
+                    <span />
+                    {cameraOn ? "CAMERA ON" : "CAMERA OFF"}
+                  </span>
+                </div>
               </div>
 
               <div className="camera-view">
@@ -820,6 +1055,11 @@ function App() {
                   muted
                 />
 
+                <canvas
+                  ref={canvasRef}
+                  className="camera-overlay-canvas"
+                />
+
                 {!cameraOn && (
                   <div className="camera-empty">
                     <span>◎</span>
@@ -827,26 +1067,13 @@ function App() {
                     <p>Start the camera to see your hand here.</p>
                   </div>
                 )}
-
-                {cameraOn && (
-                  <div className="camera-guide" aria-hidden="true">
-                    <span />
-                    <span />
-                    <span />
-                    <span />
-                  </div>
-                )}
               </div>
 
               <div className="detection-caption">
                 Detected Mudra: {cameraOn
-                  ? modelReady
-                    ? liveResult?.recognized
-                      ? liveResult.prediction
-                      : livePredictionError
-                        ? "Prediction unavailable"
-                        : "Detecting…"
-                    : "Model not ready"
+                  ? liveResult?.prediction || liveResult?.candidate
+                    ? liveResult.prediction || liveResult.candidate
+                    : "Hold your hand in front of the camera"
                   : "Camera off"}
               </div>
 
@@ -945,7 +1172,7 @@ function App() {
 
               <h3>
                 {modelReady && liveResult
-                  ? liveResult.recognized ? liveResult.prediction : "Hold your mudra steady…"
+                  ? liveResult.prediction || liveResult.candidate || "Hold your mudra steady…"
                   : isUploading
                     ? "Saving training example…"
                     : prediction
@@ -957,9 +1184,9 @@ function App() {
 
               <p>
                 {modelReady && liveResult
-                  ? liveResult.recognized
-                    ? `Live match · ${(liveResult.accuracy * 100).toFixed(0)}% confidence`
-                    : "No confident match yet. Adjust your hand and lighting."
+                  ? liveResult.accuracy != null
+                    ? `${liveResult.recognized ? "Live match" : "Possible match"} · ${(liveResult.accuracy * 100).toFixed(0)}% confidence`
+                    : "Adjust your hand and lighting for a clearer match."
                   : isUploading
                     ? `Saving this frame as ${trainingMudra}.`
                     : prediction
@@ -1023,79 +1250,8 @@ function App() {
             </article>
           </div>
         </section>
-
-        <MudraLibrary />
-
-        <section id="meaning" className="section meaning-section">
-          <div className="section-heading">
-            <div>
-              <span className="eyebrow">STEP 03 · UNDERSTAND</span>
-              <h2>Discover the meaning</h2>
-              <p>
-                Explore the traditional symbolism and expressive uses of
-                this gesture.
-              </p>
-            </div>
-
-            <span className="step-count">03 — 03</span>
-          </div>
-
-          <article className="meaning-card">
-            <div className="meaning-icon">❀</div>
-
-            <div className="meaning-copy">
-              <span className="eyebrow">YOUR MUDRA GUIDE</span>
-
-              <h3>{selectedMudra.name}</h3>
-              <h4>{selectedMudra.subtitle}</h4>
-
-              <p>{selectedMudra.meaning}</p>
-
-              <h4>How it can be used</h4>
-
-              <ul>
-                {selectedMudra.uses.map((use) => (
-                  <li key={use}>{use}</li>
-                ))}
-              </ul>
-
-              <p className="muted-note">
-                Interpretations vary by tradition, teacher, and choreography.
-                Confirm detailed explanations with a qualified Bharatanatyam
-                teacher or authoritative reference.
-              </p>
-
-              <div className="speech-actions">
-                <button className="primary-button" onClick={speakMeaning}>
-                  {isSpeaking ? "Speaking..." : "🔊 Listen to meaning"}
-                </button>
-
-                {isSpeaking && (
-                  <button
-                    className="secondary-button"
-                    onClick={stopSpeaking}
-                  >
-                    Stop audio
-                  </button>
-                )}
-              </div>
-            </div>
-          </article>
-        </section>
-
-        <footer className="footer">
-          <a className="brand footer-brand" href="#home">
-            <span className="brand-icon">ह</span>
-
-            <span>
-              <strong>HASTAGYAAN</strong>
-              <small>Tradition meets technology</small>
-            </span>
-          </a>
-
-          <p>Built to help preserve and explore Indian classical dance.</p>
-        </footer>
       </main>
+
     </div>
   );
 }

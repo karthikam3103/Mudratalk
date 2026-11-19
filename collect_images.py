@@ -83,7 +83,7 @@ def collect_images(split, mudra):
             2
         )
 
-        cv2.imshow("HASTAGYAAN - Image Collection", frame)
+        cv2.imshow("MUDRATALK - Image Collection", frame)
 
         key = cv2.waitKey(1) & 0xFF
 
@@ -113,7 +113,7 @@ def collect_images(split, mudra):
 
 
 def main():
-    print("\n===== HASTAGYAAN DATASET COLLECTION =====")
+    print("\n===== MUDRATALK DATASET COLLECTION =====")
     print("1. Train")
     print("2. Validation")
     print("3. Test")

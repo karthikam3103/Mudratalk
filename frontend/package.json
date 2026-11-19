@@ -1,5 +1,6 @@
 {
-  "name": "frontend",
+  "name": "mudratalk-frontend",
+  "description": "MUDRATALK: An AI-Based Mudra Recognition System for Indian Traditional Dance Styles Using CNN.",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -11,7 +12,8 @@
   },
   "dependencies": {
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.5"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

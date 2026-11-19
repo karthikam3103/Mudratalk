@@ -5,3 +5,5 @@ pillow
 numpy
 opencv-python
 scikit-learn
+mediapipe
+tensorflow==2.21.0
