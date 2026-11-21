@@ -1108,20 +1108,6 @@ function App() {
                   <p>{liveResult.meaning}</p>
                 </div>
               )}
-
-              <div className="model-status" style={{ marginTop: "1.25rem" }}>
-                <span
-                  className="status-dot pending"
-                  style={{
-                    background: "#5d9971",
-                  }}
-                />
-                MediaPipe 3D Landmark Engine Active
-              </div>
-
-              <p className="muted-note">
-                Live geometric classification uses 21 3D hand landmarks in real time. Single-hand Asamyuta mudras are fully supported. Double-hand mudra recognition is under development for Review 2.
-              </p>
             </article>
           </div>
         </section>
