@@ -332,7 +332,7 @@ function App() {
         });
 
         hands.setOptions({
-          maxNumHands: handMode === "double" ? 2 : 1,
+          maxNumHands: 1,
           modelComplexity: 1,
           minDetectionConfidence: 0.5,
           minTrackingConfidence: 0.5,
@@ -356,15 +356,8 @@ function App() {
           if (lms && lms.length > 0) {
             lastLandmarkDetectTime.current = Date.now();
 
-            let res = null;
-            if (handMode === "double" && lms.length >= 2) {
-              drawHandSkeleton(ctx, lms[0], canvas.width, canvas.height, "rgba(255, 255, 255, 0.9)");
-              drawHandSkeleton(ctx, lms[1], canvas.width, canvas.height, "rgba(255, 180, 120, 0.9)");
-              res = classifyDoubleHands(lms[0], lms[1]);
-            } else {
-              drawHandSkeleton(ctx, lms[0], canvas.width, canvas.height);
-              res = classifyLandmarks(lms[0]);
-            }
+            drawHandSkeleton(ctx, lms[0], canvas.width, canvas.height);
+            const res = classifyLandmarks(lms[0]);
 
             if (res && res.recognized) {
               setLiveResult({
@@ -373,7 +366,7 @@ function App() {
                 accuracy: res.confidence,
                 recognized: true,
                 meaning: res.meaning,
-                model: handMode === "double" ? "MediaPipe 2-Hand Landmarks" : "MediaPipe 21 Landmarks",
+                model: "MediaPipe 21 Landmarks",
               });
               setModelReady(true);
               setLivePredictionError("");
@@ -803,26 +796,6 @@ function App() {
           <a href="#mudra-library">Mudra Library</a>
           <a href="#recognize">Recognition</a>
         </nav>
-
-        <span className="status">
-          <span
-            className="status-dot"
-            style={{
-              background:
-                backendStatus === "online"
-                  ? "#5d9971"
-                  : backendStatus === "offline"
-                    ? "#c45b5b"
-                    : "#d4a24b",
-            }}
-          />
-
-          {backendStatus === "online"
-            ? "Backend Connected"
-            : backendStatus === "offline"
-              ? "Backend Offline"
-              : "Connecting..."}
-        </span>
       </header>
 
       <main id="home">
@@ -1005,9 +978,9 @@ function App() {
               <span className="eyebrow">STEP 03 · RECOGNITION</span>
               <h2>Try it in front of the camera</h2>
               <p>
-                The camera starts while this section is open and checks for
-                trained mudras automatically. Capture gesture saves a labeled
-                training example.
+                Position your hand in front of the camera for real-time 3D
+                MediaPipe landmark tracking and single-hand (Asamyuta) mudra
+                recognition.
               </p>
             </div>
 
@@ -1021,20 +994,16 @@ function App() {
 
                 <div className="camera-topbar-actions">
                   <div className="hand-mode-toggle" role="group" aria-label="Recognition hand mode">
-                    <button
-                      type="button"
-                      className={handMode === "single" ? "mode-pill active" : "mode-pill"}
-                      onClick={() => setHandMode("single")}
+                    <span className="mode-pill active">
+                      1 Hand (Active)
+                    </span>
+                    <span
+                      className="mode-pill"
+                      style={{ opacity: 0.45, cursor: "not-allowed", pointerEvents: "none" }}
+                      title="Under development for Review 2"
                     >
-                      1 Hand
-                    </button>
-                    <button
-                      type="button"
-                      className={handMode === "double" ? "mode-pill active" : "mode-pill"}
-                      onClick={() => setHandMode("double")}
-                    >
-                      2 Hands
-                    </button>
+                      2 Hands (Under Dev)
+                    </span>
                   </div>
 
                   <span className={cameraOn ? "live-label active" : "live-label"}>
@@ -1096,73 +1065,18 @@ function App() {
                     Start camera →
                   </button>
                 ) : (
-                  <>
-                    <button
-                      className="primary-button"
-                      onClick={captureImage}
-                      disabled={isUploading}
-                    >
-                      {isUploading ? "Saving example…" : "Capture gesture"}
-                    </button>
-
-                    <button
-                      className="secondary-button"
-                      onClick={stopCamera}
-                      disabled={isUploading}
-                    >
-                      Stop camera
-                    </button>
-                  </>
+                  <button
+                    className="secondary-button"
+                    onClick={stopCamera}
+                  >
+                    Stop camera
+                  </button>
                 )}
               </div>
 
               <p className="privacy-note">
                 Your camera is used only after you grant permission.
               </p>
-
-              <div className="training-panel">
-                <span className="eyebrow">BUILD YOUR RECOGNIZER</span>
-                <p>
-                  Choose the pose you are showing, then collect examples. Keep
-                  your hand inside the frame and vary its distance and angle.
-                </p>
-                <label className="mudra-field">
-                  <span>Mudra label</span>
-                  <select
-                    value={trainingMudra}
-                    onChange={(event) => setTrainingMudra(event.target.value)}
-                    disabled={isCollecting}
-                  >
-                    {trainingMudras.map((name) => (
-                      <option value={name} key={name}>{name}</option>
-                    ))}
-                  </select>
-                </label>
-                <p className="muted-note">
-                  {sampleCounts[trainingMudra] || 0} samples saved for {trainingMudra};
-                collect at least 20 for every mudra you want to recognize.
-                </p>
-                <div className="camera-actions">
-                  <button
-                    className={isCollecting ? "secondary-button" : "primary-button"}
-                    onClick={() => {
-                      setTrainingMessage("");
-                      setIsCollecting((value) => !value);
-                    }}
-                    disabled={!cameraOn}
-                  >
-                    {isCollecting ? "Stop collecting" : "Collect this mudra"}
-                  </button>
-                  <button
-                    className="secondary-button"
-                    onClick={trainMudraModel}
-                    disabled={isTraining}
-                  >
-                    {isTraining ? "Training…" : "Train model"}
-                  </button>
-                </div>
-                {trainingMessage && <p className="muted-note">{trainingMessage}</p>}
-              </div>
             </article>
 
             <article className="result-card">
@@ -1171,81 +1085,42 @@ function App() {
               <div className="result-symbol">✧</div>
 
               <h3>
-                {modelReady && liveResult
+                {liveResult
                   ? liveResult.prediction || liveResult.candidate || "Hold your mudra steady…"
-                  : isUploading
-                    ? "Saving training example…"
-                    : prediction
-                      ? prediction.status === "sample_saved"
-                        ? "Training example saved"
-                        : prediction.mudraName || "Mudra recognized"
-                      : modelReady ? "Show a mudra to the camera" : "Collect examples to begin"}
+                  : cameraOn
+                    ? "Hold your hand in front of the camera"
+                    : "Start the camera to begin"}
               </h3>
 
               <p>
-                {modelReady && liveResult
+                {liveResult
                   ? liveResult.accuracy != null
                     ? `${liveResult.recognized ? "Live match" : "Possible match"} · ${(liveResult.accuracy * 100).toFixed(0)}% confidence`
                     : "Adjust your hand and lighting for a clearer match."
-                  : isUploading
-                    ? `Saving this frame as ${trainingMudra}.`
-                    : prediction
-                      ? prediction.message
-                      : "Select a label, collect examples, then train the model for live recognition."}
+                  : cameraOn
+                    ? "Show an Asamyuta (single hand) mudra to the camera for real-time 3D landmark recognition."
+                    : "Turn on the camera above to start real-time MediaPipe hand landmark detection."}
               </p>
 
-              {prediction && (
-                <div className="capture-result">
-                  <img
-                    src={prediction.imageUrl}
-                    alt="Captured hand gesture"
-                  />
-
-                  <strong>
-                    {prediction.status === "sample_saved"
-                      ? "Training example saved"
-                      : prediction.recognized
-                        ? "Recognition completed"
-                        : "Image uploaded successfully"}
-                  </strong>
-
-                  <p>{prediction.message}</p>
-
-                  {prediction.recognized && prediction.accuracy != null && (
-                    <p>
-                      Model confidence:{" "}
-                      {(Number(prediction.accuracy) * 100).toFixed(1)}%
-                    </p>
-                  )}
-
-                  {!prediction.recognized && prediction.status !== "sample_saved" && (
-                    <p>
-                      The image has reached the backend, but the trained CNN
-                      has not been connected yet.
-                    </p>
-                  )}
+              {liveResult && liveResult.meaning && (
+                <div className="capture-result" style={{ marginTop: "1rem" }}>
+                  <strong>Meaning & Context</strong>
+                  <p>{liveResult.meaning}</p>
                 </div>
               )}
 
-              <div className="model-status">
+              <div className="model-status" style={{ marginTop: "1.25rem" }}>
                 <span
                   className="status-dot pending"
                   style={{
-                    background:
-                      backendStatus === "online" ? "#5d9971" : "#d4a24b",
+                    background: "#5d9971",
                   }}
                 />
-
-                {backendStatus === "online"
-                  ? modelReady ? "Live mudra model ready" : "Backend connected · model needs training"
-                  : backendStatus === "offline"
-                    ? "Python backend unavailable"
-                    : "Checking backend connection..."}
+                MediaPipe 3D Landmark Engine Active
               </div>
 
               <p className="muted-note">
-                The model learns from your labeled camera examples. Its
-                confidence depends on the variety and quality of those samples.
+                Live geometric classification uses 21 3D hand landmarks in real time. Single-hand Asamyuta mudras are fully supported. Double-hand mudra recognition is under development for Review 2.
               </p>
             </article>
           </div>
